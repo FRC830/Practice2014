@@ -15,6 +15,9 @@ class AtlasPractice : public IterativeRobot {
 	static const int FRONT_RIGHT_PWM = 7;
 	static const int REAR_RIGHT_PWM = 8;
 	
+	static const int ENCODER_A_DIO = 1;
+	static const int ENCODER_B_DIO = 2;
+	
 	static const int PRESSURE_SWITCH_CHANNEL = 6;
 	static const int COMPRESSOR_RELAY_CHANNEL = 1;
 	
@@ -30,6 +33,7 @@ class AtlasPractice : public IterativeRobot {
 	static const int GEAR_SHIFT_REVERSE = 1;
 	static const DoubleSolenoid::Value LOW_GEAR = DoubleSolenoid::kForward;
 	static const DoubleSolenoid::Value HIGH_GEAR = DoubleSolenoid::kReverse;
+	static const int ENCODER_BOTTOM = 64;
 	
 	Victor * roller_motor;
 	DigitalInput * top_arm_switch;
@@ -40,6 +44,7 @@ class AtlasPractice : public IterativeRobot {
 	Talon * front_right;
 	Talon * rear_right;
 	RobotDrive * drivetrain;
+	Encoder * encoder;
 	
 	DoubleSolenoid * gear_shift;
 	Compressor * compressor;
@@ -68,6 +73,8 @@ class AtlasPractice : public IterativeRobot {
 		drivetrain = new RobotDrive(front_left, rear_left, front_right, rear_right);
 		previous_speed = 0.0;
 		previous_turn = 0.0;
+		encoder = new Encoder(ENCODER_A_DIO,  ENCODER_B_DIO);
+		encoder->Start();
 		
 		gear_shift = new DoubleSolenoid(GEAR_SHIFT_FORWARD, GEAR_SHIFT_REVERSE);
 		compressor = new Compressor(PRESSURE_SWITCH_CHANNEL, COMPRESSOR_RELAY_CHANNEL);
@@ -80,6 +87,13 @@ class AtlasPractice : public IterativeRobot {
 		
 		lcd = DriverStationLCD::GetInstance();
 		
+	}
+	
+	bool arm_at_top(){
+		return !top_arm_switch->Get();
+	}
+	bool arm_at_bottom(){
+		return encoder->Get() >= ENCODER_BOTTOM;
 	}
 	
 	void DisabledPeriodic() {
@@ -128,16 +142,38 @@ class AtlasPractice : public IterativeRobot {
 		previous_turn = turn;
 		
 		//going down
-		if(pilot->GetNumberedButton(8)){
-			arm->Set(0.5);
+		if(pilot->GetNumberedButton(8) && !arm_at_bottom()){
+			int enc = encoder->Get();
+			double motor_power = 0.0;
+			if (enc > 40) {
+				motor_power = 0.1;
+			} else if (enc >= 20 && enc <= 40){
+				motor_power = 0.2;
+			} else if (enc < 20){
+				motor_power = 0.4;
+			}
+			arm->Set(motor_power);
 		}
 		//going up
-		else if(pilot->GetNumberedButton(6) && top_arm_switch->Get()){
-			arm->Set(-0.6);
+		else if(pilot->GetNumberedButton(6) && !arm_at_top()){
+			int enc = encoder->Get();
+			double motor_power = 0.0;
+			if (enc > 40) {
+				motor_power = -0.8;
+			} else if (enc >= 20 && enc <= 40){
+				motor_power = -0.6;
+			} else if (enc < 20){
+				motor_power = -0.5;
+			}
+			arm->Set(motor_power);
 		}
 		else{
 			arm->Set(0.0);
 		}
+		if(arm_at_top()){
+			encoder->Reset();
+		}
+		
 		
 		if(pilot->GetNumberedButton(5)){
 			gear_shift->Set(LOW_GEAR);
@@ -158,10 +194,12 @@ class AtlasPractice : public IterativeRobot {
 			lcd->PrintfLine(DriverStationLCD::kUser_Line1,"firing");
 		} else {
 			clutch->Set(CLUTCH_IN);
-			lcd->PrintfLine(DriverStationLCD::kUser_Line1, "not firing");
+			lcd->PrintfLine(DriverStationLCD::kUser_Line1, "not firing!");
 		}
+
 		
-		
+		lcd->PrintfLine(DriverStationLCD::kUser_Line2, "enc=%d arm_at_top=%d",
+				encoder->Get(), (int)arm_at_top());
 		lcd->UpdateLCD();
 	}
 };
