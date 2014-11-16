@@ -57,6 +57,8 @@ class AtlasPractice : public IterativeRobot {
 	 
 	DriverStationLCD * lcd;
 	
+	Timer * auton_timer;
+	
 	float previous_speed;
 	float previous_turn;
 	
@@ -87,6 +89,7 @@ class AtlasPractice : public IterativeRobot {
 		
 		lcd = DriverStationLCD::GetInstance();
 		
+		auton_timer = new Timer();
 	}
 	
 	bool arm_at_top(){
@@ -102,10 +105,16 @@ class AtlasPractice : public IterativeRobot {
 	
 	void AutonomousInit() {
 		compressor->Start();
+		auton_timer->Reset();
+		auton_timer->Start();
 	}
 	
 	void AutonomousPeriodic() {
-		roller_motor->Set(0.5);
+		if (auton_timer->Get() < 5.0f){
+			drivetrain->ArcadeDrive(0.5,0.0);
+		} else {
+			drivetrain->ArcadeDrive(0.0,0.0);
+		}
 	}
 	
 	void TeleopInit() {
